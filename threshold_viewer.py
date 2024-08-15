@@ -83,89 +83,64 @@ class ImageModifiers:
 
 class ThresholdApp(App):
     def build(self):
-        # Root Element definitions + layout
-        self.root = BoxLayout(orientation="vertical")
-        self.image_row = GridLayout(cols=2)
-        self.label_row = BoxLayout(size_hint_y=0.05)
-        self.footer_row = BoxLayout(size_hint_y=0.1)
-        self.settings_row = BoxLayout(size_hint_y=0.05)
-        self.slider_labels = BoxLayout(size_hint_y=0.05)
-        self.slider_row = BoxLayout(size_hint_y=0.1)
-        self.root.add_widget(self.settings_row)
-        self.root.add_widget(self.image_row)
-        self.root.add_widget(self.slider_labels)
-        self.root.add_widget(self.slider_row)
-        self.root.add_widget(self.label_row)
-        self.root.add_widget(self.footer_row)
-
+        self.__setup_root_skeleton_structure()
         self.image_widget = None
         self.modifiable_image = None
         self.channel_dropdown = None
         self.algorithm_dropdown = None
-        self.binary_threshold_label = None
-        self.binary_threshold_slider = None
-        self.block_size_slider = None
-        self.constant_c_slider = None
-        self.block_size_label = None
-        self.constant_c_slider_label = None
+        self.slider_manager = None
         self.file_select_button = FileSelectButton(
             text="Select File",
             update_selected_path=self.update_selected_path,
         )
         self.label_ref = Label(text="", color="white", font_size="15sp", halign="left")
-
-        # Data Definitions
         self.image_data = ImageData()
         self.image_modifiers = ImageModifiers()
         self.footer_row.add_widget(self.file_select_button)
         self.label_row.add_widget(self.label_ref)
         return self.root
 
+    def __setup_root_skeleton_structure(self):
+        self.root = BoxLayout(orientation="vertical")
+        self.image_row = GridLayout(cols=2)
+        self.label_row = BoxLayout(size_hint_y=0.05)
+        self.footer_row = BoxLayout(size_hint_y=0.1)
+        self.dropdown_row = BoxLayout(size_hint_y=0.05)
+        self.slider_manager_row = BoxLayout(size_hint_y=0.15)
+        self.root.add_widget(self.dropdown_row)
+        self.root.add_widget(self.image_row)
+        self.root.add_widget(self.label_row)
+        self.root.add_widget(self.slider_manager_row)
+        self.root.add_widget(self.footer_row)
+
     def update_selected_path(self, selected_path):
         self.label_ref.text = selected_path
-        if self.image_widget:
-            self.image_row.remove_widget(self.image_widget)
-        if self.modifiable_image:
-            self.image_row.remove_widget(self.modifiable_image)
         self.image_data.load_image(selected_path)
-        # If the image widgets exists, remove them
-        self.modifiable_image = ModifiableImage(
-            self.image_data,
-            self.image_modifiers,
-            size=(self.image_data.image_height, self.image_data.image_width),
-            fit_mode="contain",
-        )
-        self.image_widget = Image(source=self.label_ref.text, fit_mode="contain")
+        if not self.modifiable_image:
+            self.modifiable_image = ModifiableImage(
+                self.image_data,
+                self.image_modifiers,
+                size=(self.image_data.image_height, self.image_data.image_width),
+                fit_mode="contain",
+            )
+            self.image_widget = Image(source=self.label_ref.text, fit_mode="contain")
+            self.image_row.add_widget(self.image_widget)
+            self.image_row.add_widget(self.modifiable_image)
+        else:
+            # Just update exising image with current properties instead.
+            self.modifiable_image.update_threshold_texture()
+            self.image_widget.source = selected_path
+        if not self.slider_manager:
+            self.slider_manager = SliderManager(
+                self.image_modifiers,
+                orientation="vertical",
+                slider_value_change_callback=self.modifiable_image.update_threshold_texture,
+            )
+            self.slider_manager_row.add_widget(self.slider_manager)
         if not self.channel_dropdown:
             self.add_channel_dropdown_list()
         if not self.algorithm_dropdown:
             self.add_algorithm_dropdown_list()
-        # Make binary threshold slider appear by default, but check first
-        # if there are any sliders present BEFORE adding the slider.
-        if (
-            not self.binary_threshold_slider
-            and not self.block_size_slider
-            and not self.constant_c_slider
-        ):
-            self.add_binary_threshold_slider()
-        self.image_row.add_widget(self.image_widget)
-        self.image_row.add_widget(self.modifiable_image)
-
-    def update_threshold_value(self, instance, value):
-        self.image_modifiers.binary_threshold_value = value
-        self.binary_threshold_label.text = f"Pixel Threshold: {str(value)}"
-        self.binary_threshold_label.size = self.binary_threshold_label.texture_size
-        print(f"Threshold value: {value}")
-        self.modifiable_image.update_threshold_texture()
-
-    def clear_selected_path(self, value):
-        self.label_ref.text = ""
-        self.image_data.clear_thresholded_image()
-        self.root.remove_widget(self.slider_labels)
-        self.root.remove_widget(self.slider_row)
-        self.root.remove_widget(self.image_widget)
-        self.image_widget = None
-        self.slider = None
 
     def add_channel_dropdown_list(self):
         self.channel_dropdown = DropDown()
@@ -181,7 +156,7 @@ class ThresholdApp(App):
         self.channel_dropdown.bind(
             on_select=self.trigger_texture_modification,
         )
-        self.settings_row.add_widget(self.dropdown_entrypoint)
+        self.dropdown_row.add_widget(self.dropdown_entrypoint)
 
     def add_algorithm_dropdown_list(self):
         self.algorithm_dropdown = DropDown()
@@ -197,27 +172,16 @@ class ThresholdApp(App):
         self.algorithm_dropdown.bind(
             on_select=self.trigger_algorithm_modification,
         )
-        self.settings_row.add_widget(self.algorithm_dropdown_entrypoint)
+        self.dropdown_row.add_widget(self.algorithm_dropdown_entrypoint)
 
     def trigger_algorithm_modification(self, instance, value):
         if value == self.algorithm_dropdown_entrypoint.text:
             return
         self.algorithm_dropdown_entrypoint.text = value
         self.image_modifiers.selected_algorithm = value
-        if value == "GLOBAL_THRESH":
-            self.remove_adaptive_sliders()
-            self.add_binary_threshold_slider()
-        elif value == "OTSU_THRESH":
-            # Otsu doesn't use threshold sliders at all
-            # but perhaps adding blur sliders would be a good idea here instead
-            self.remove_adaptive_sliders()
-            self.remove_binary_threshold_slider()
-        else:
-            # We're going down the double slider route
-            if not self.block_size_slider and not self.constant_c_slider:
-                self.remove_binary_threshold_slider()
-                self.add_adaptive_sliders()
-
+        # Let the slider manager handle attachment and removal of sliders
+        # itself
+        self.slider_manager.dispatch("on_algorithm_change", value)
         self.modifiable_image.update_threshold_texture()
 
     def trigger_texture_modification(self, instance, value):
@@ -226,27 +190,35 @@ class ThresholdApp(App):
         self.dropdown_entrypoint.text = value
         self.modifiable_image.update_threshold_texture()
 
-    def add_binary_threshold_slider(self):
+
+class ClearButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(on_press=self.clear_text)
+
+    def clear_text(self, instance):
+        self.parent.label_ref.text = ""
+
+
+class SliderManager(BoxLayout):
+    def __init__(
+        self,
+        image_modifiers: ImageModifiers,
+        slider_value_change_callback: callable,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.image_modifiers = image_modifiers
+        self.slider_change_callback = slider_value_change_callback
+        self.slider_label_row = BoxLayout()
+        self.slider_row = BoxLayout()
+        self.add_widget(self.slider_label_row)
+        self.add_widget(self.slider_row)
+        self.register_event_type("on_algorithm_change")
+        # Can keep sliders and labels in memory, just add and remove them as needed
         self.binary_threshold_slider = Slider(
             min=0, max=255, step=1, value=self.image_modifiers.binary_threshold_value
         )
-        self.binary_threshold_label = Label(
-            text=f"Pixel Threshold: {str(self.image_modifiers.binary_threshold_value)}",
-            size_hint=(0.2, 1),
-        )
-        self.binary_threshold_slider.bind(value=self.update_threshold_value)
-        self.slider_labels.add_widget(self.binary_threshold_label)
-        self.slider_row.add_widget(self.binary_threshold_slider)
-
-    def remove_binary_threshold_slider(self):
-        if self.binary_threshold_slider:
-            self.slider_row.remove_widget(self.binary_threshold_slider)
-            self.binary_threshold_slider.unbind(value=self.update_threshold_value)
-            self.binary_threshold_slider = None
-            self.slider_labels.remove_widget(self.binary_threshold_label)
-
-    def add_adaptive_sliders(self):
-        # Add these for the adaptive algorithms exclusively.
         self.block_size_slider = Slider(
             min=3,
             max=255,
@@ -259,51 +231,77 @@ class ThresholdApp(App):
             step=1,
             value=self.image_modifiers.adaptive_constant_c,
         )
-        self.block_size_slider.bind(value=self.update_block_size)
-        self.constant_c_slider.bind(value=self.update_constant_c)
-
-        self.block_size_label = Label(
-            text=f"Block Size: {str(self.image_modifiers.adaptive_block_size)}",
-            size_hint=(0.2, 1),
+        self.binary_threshold_label = Label(
+            text=f"Pixel Threshold: {str(self.binary_threshold_slider.value)}",
+        )
+        self.block_size_slider_label = Label(
+            text=f"Block Size: {str(self.block_size_slider.value)}",
         )
         self.constant_c_slider_label = Label(
-            text=f"Constant C: {str(self.image_modifiers.adaptive_constant_c)}",
-            size_hint=(0.2, 1),
+            text=f"Constant C: {str(self.constant_c_slider.value)}",
         )
-        self.slider_labels.add_widget(self.block_size_label)
-        self.slider_labels.add_widget(self.constant_c_slider_label)
-        self.slider_row.add_widget(self.block_size_slider)
-        self.slider_row.add_widget(self.constant_c_slider)
 
-    def update_block_size(self, instance, value):
+        self.block_size_slider.bind(value=self.update_block_size_value)
+        self.constant_c_slider.bind(value=self.update_constant_c_value)
+        self.binary_threshold_slider.bind(value=self.update_binary_threshold_value)
+
+        # Initiate the construction of the sliders
+        self.on_algorithm_change(self.image_modifiers.selected_algorithm)
+
+    def update_block_size_value(self, instance, value):
         self.image_modifiers.adaptive_block_size = int(value)
-        self.block_size_label.text = f"Block Size: {str(value)}"
-        self.modifiable_image.update_threshold_texture()
+        self.block_size_slider_label.text = f"Block Size: {str(value)}"
+        self.slider_change_callback()
 
-    def update_constant_c(self, instance, value):
+    def update_constant_c_value(self, instance, value):
         self.image_modifiers.adaptive_constant_c = int(value)
         self.constant_c_slider_label.text = f"Constant C: {str(value)}"
-        self.modifiable_image.update_threshold_texture()
+        self.slider_change_callback()
+
+    def update_binary_threshold_value(self, instance, value):
+        self.image_modifiers.binary_threshold_value = value
+        self.binary_threshold_label.text = f"Pixel Threshold: {str(value)}"
+        self.slider_change_callback()
+
+    def add_adaptive_sliders(self):
+        if not self.block_size_slider.parent and not self.constant_c_slider.parent:
+            self.slider_row.add_widget(self.block_size_slider)
+            self.slider_row.add_widget(self.constant_c_slider)
+            self.slider_label_row.add_widget(self.block_size_slider_label)
+            self.slider_label_row.add_widget(self.constant_c_slider_label)
 
     def remove_adaptive_sliders(self):
-        if self.block_size_slider and self.constant_c_slider:
+        if self.block_size_slider.parent and self.constant_c_slider.parent:
             self.slider_row.remove_widget(self.block_size_slider)
             self.slider_row.remove_widget(self.constant_c_slider)
-            self.block_size_slider.unbind(value=self.update_block_size)
-            self.constant_c_slider.unbind(value=self.update_constant_c)
-            self.block_size_slider = None
-            self.constant_c_slider = None
-            self.slider_labels.remove_widget(self.block_size_label)
-            self.slider_labels.remove_widget(self.constant_c_slider_label)
+            self.slider_label_row.remove_widget(self.block_size_slider_label)
+            self.slider_label_row.remove_widget(self.constant_c_slider_label)
 
+    def add_binary_threshold_slider(self):
+        if not self.binary_threshold_slider.parent:
+            self.slider_row.add_widget(self.binary_threshold_slider)
+            self.slider_label_row.add_widget(self.binary_threshold_label)
 
-class ClearButton(Button):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.bind(on_press=self.clear_text)
+    def remove_binary_threshold_slider(self):
+        if self.binary_threshold_label.parent:
+            self.slider_row.remove_widget(self.binary_threshold_slider)
+            self.slider_label_row.remove_widget(self.binary_threshold_label)
 
-    def clear_text(self, instance):
-        self.parent.label_ref.text = ""
+    def on_algorithm_change(self, algorithm_name: str):
+        print(f"Algorithm changed to {algorithm_name}")
+        if algorithm_name == "GLOBAL_THRESH":
+            self.add_binary_threshold_slider()
+            self.remove_adaptive_sliders()
+        elif algorithm_name in [
+            "ADAPTIVE_THRESH_MEAN_C",
+            "ADAPTIVE_THRESH_GAUSSIAN_C",
+        ]:
+            self.add_adaptive_sliders()
+            self.remove_binary_threshold_slider()
+        else:
+            # This is OTSU_THRESH, remove algorithm specific sliders
+            self.remove_adaptive_sliders()
+            self.remove_binary_threshold_slider()
 
 
 class FileSelectButton(Button):
