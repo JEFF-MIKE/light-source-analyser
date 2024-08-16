@@ -163,3 +163,5 @@ cython_debug/
 
 # Default directory for sample_images
 sample_images/**/*
+
+.vscode/**/*
