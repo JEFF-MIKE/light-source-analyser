@@ -147,7 +147,7 @@ class FileSelectButton(Button):
         self.bind(on_press=self.open_file_select)
 
     def open_file_select(self, instance):
-        current_directory = os.getcwd()  # Make this dynamic.
+        current_directory = os.getcwd()  # Make this dynamic?
         content = FileChooserListView(
             on_submit=self.selected,
             path=current_directory,

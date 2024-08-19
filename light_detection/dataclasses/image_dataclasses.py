@@ -27,6 +27,7 @@ class ImageData:
     saturation_channel: np.ndarray = None
     brightness_channel: np.ndarray = None
     thresholded_image: np.ndarray = None
+    image_name: np.ndarray = None
 
     def load_image(self, image_path: str):
         # perform the image_conversions here
