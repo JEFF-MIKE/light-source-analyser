@@ -44,7 +44,7 @@ class ThresholdApp(App):
         self.label_row = BoxLayout(size_hint_y=0.05)
         self.footer_row = BoxLayout(size_hint_y=0.1)
         self.dropdown_row = BoxLayout(size_hint_y=0.05)
-        self.slider_manager_row = BoxLayout(size_hint_y=0.15)
+        self.slider_manager_row = BoxLayout(size_hint_y=0.25)
         self.root.add_widget(self.dropdown_row)
         self.root.add_widget(self.image_row)
         self.root.add_widget(self.label_row)
@@ -74,6 +74,7 @@ class ThresholdApp(App):
                 self.image_modifiers,
                 orientation="vertical",
                 slider_value_change_callback=self.modifiable_image.update_threshold_texture,
+                blur_callback=self.modifiable_image.apply_blur,
             )
             self.slider_manager_row.add_widget(self.slider_manager)
         if not self.channel_dropdown:
@@ -121,13 +122,13 @@ class ThresholdApp(App):
         # Let the slider manager handle attachment and removal of sliders
         # itself
         self.slider_manager.dispatch("on_algorithm_change", value)
-        self.modifiable_image.update_threshold_texture()
+        self.modifiable_image.apply_blur()
 
     def trigger_texture_modification(self, instance, value):
         # Value is the string used to select the channel
         self.image_modifiers.selected_channel = value
         self.dropdown_entrypoint.text = value
-        self.modifiable_image.update_threshold_texture()
+        self.modifiable_image.apply_blur()
 
 
 class ClearButton(Button):
@@ -194,8 +195,20 @@ class ModifiableImage(Image):
     def cleanup_texture(self):
         self.texture.remove_reload_observer(self.update_threshold_texture)
 
+    def apply_blur(self):
+        target_image = self._select_image_channel()
+        self._image_modifiers.cache_blurred_image(target_image)
+        self.update_threshold_texture()
+
+    def _select_image_channel(self):
+        return self._image_data.__dict__[self._image_modifiers.selected_channel]
+
     def update_threshold_texture(self):
-        thresholded_image = self.apply_threshold_algorithm()
+        target_image = self._select_image_channel()
+        if self._image_modifiers.blur_toggle:
+            # Apply blur to the target_image first
+            target_image = self._image_modifiers.blurred_image
+        thresholded_image = self.apply_threshold_algorithm(target_image)
         self.texture.blit_buffer(
             thresholded_image.tobytes(),
             size=(self._image_data.image_height, self._image_data.image_width),
@@ -203,17 +216,17 @@ class ModifiableImage(Image):
             bufferfmt="ubyte",
         )
 
-    def apply_threshold_algorithm(self):
+    def apply_threshold_algorithm(self, target_image):
         if self._image_modifiers.selected_algorithm == "GLOBAL_THRESH":
             return cv2.threshold(
-                self._image_data.__dict__[self._image_modifiers.selected_channel],
+                target_image,
                 self._image_modifiers.binary_threshold_value,
                 255,
                 cv2.THRESH_BINARY,
             )[1]
         elif self._image_modifiers.selected_algorithm == "ADAPTIVE_THRESH_MEAN_C":
             return cv2.adaptiveThreshold(
-                self._image_data.__dict__[self._image_modifiers.selected_channel],
+                target_image,
                 255,
                 cv2.ADAPTIVE_THRESH_MEAN_C,
                 cv2.THRESH_BINARY,
@@ -222,7 +235,7 @@ class ModifiableImage(Image):
             )
         elif self._image_modifiers.selected_algorithm == "ADAPTIVE_THRESH_GAUSSIAN_C":
             return cv2.adaptiveThreshold(
-                self._image_data.__dict__[self._image_modifiers.selected_channel],
+                target_image,
                 255,
                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                 cv2.THRESH_BINARY,
@@ -231,7 +244,7 @@ class ModifiableImage(Image):
             )
         elif self._image_modifiers.selected_algorithm == "OTSU_THRESH":
             return cv2.threshold(
-                self._image_data.__dict__[self._image_modifiers.selected_channel],
+                target_image,
                 0,
                 255,
                 cv2.THRESH_BINARY + cv2.THRESH_OTSU,

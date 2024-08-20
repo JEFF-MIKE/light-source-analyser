@@ -11,6 +11,14 @@ class ImageModifiers:
     selected_algorithm = "GLOBAL_THRESH"
     adaptive_block_size = 11
     adaptive_constant_c = 1
+    blur_toggle = False
+    blur_value = 1
+    blurred_image = None
+
+    def cache_blurred_image(self, image_data):
+        self.blurred_image = cv2.GaussianBlur(
+            image_data, (self.blur_value, self.blur_value), 0
+        )
 
 
 @dataclass
