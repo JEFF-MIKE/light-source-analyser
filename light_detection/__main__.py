@@ -131,15 +131,6 @@ class ThresholdApp(App):
         self.modifiable_image.apply_blur()
 
 
-class ClearButton(Button):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.bind(on_press=self.clear_text)
-
-    def clear_text(self, instance):
-        self.parent.label_ref.text = ""
-
-
 class FileSelectButton(Button):
     # Make a pop up appear when the button is pressed
     def __init__(self, update_selected_path, **kwargs):
