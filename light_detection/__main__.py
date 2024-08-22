@@ -16,8 +16,6 @@ from light_detection.dataclasses.image_dataclasses import ImageData, ImageModifi
 from light_detection.widgets.slider_manager import SliderManager
 from light_detection.constants import AVAILABLE_CHANNELS, AVAILABLE_ALGORITHMS
 
-# TODO: Add image blurring to convey object detection algorithms
-
 
 class ThresholdApp(App):
     def build(self):
@@ -52,15 +50,15 @@ class ThresholdApp(App):
         self.root.add_widget(self.footer_row)
 
     def update_selected_path(self, selected_path):
-        self.label_ref.text = selected_path
         self.image_data.load_image(selected_path)
+        self.label_ref.text = os.path.basename(selected_path)
         if not self.modifiable_image:
             self.modifiable_image = ModifiableImage(
                 self.image_data,
                 self.image_modifiers,
                 size=(self.image_data.image_height, self.image_data.image_width),
             )
-            self.image_widget = Image(source=self.label_ref.text)
+            self.image_widget = Image(source=selected_path)
             self.image_row.add_widget(self.image_widget)
             self.image_row.add_widget(self.modifiable_image)
         else:
