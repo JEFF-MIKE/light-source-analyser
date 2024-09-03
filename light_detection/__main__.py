@@ -28,7 +28,7 @@ class ThresholdApp(App):
 
 
 class ThresholdRoot(Screen):
-    # Subclass from BoxLayout instead of widget to get the correct styling properties
+    # Subclass from BoxLayout instead of widget to get the correct styling properties inside .kv file!
     file_selector = ObjectProperty()
     dropdown_row = ObjectProperty()
     channel_dropdown = ObjectProperty()
@@ -36,7 +36,7 @@ class ThresholdRoot(Screen):
     image_row = ObjectProperty()
     original_image = ObjectProperty()
     slider_manager = ObjectProperty()
-
+    modifiable_image = ObjectProperty()
     selected_channel = StringProperty("grayscale_image")
     selected_algorithm = StringProperty("GLOBAL_THRESH")
     selected_image_path = StringProperty("")
@@ -52,32 +52,14 @@ class ThresholdRoot(Screen):
     def update_root_data(self, selected_path):
         print(f"Changing Image Path To: {selected_path}")
         self.selected_image_path = selected_path
+        self.modifiable_image._update_with_new_image(selected_path)
 
-    def update_selected_path(self, selected_path):
-        self.image_data.load_image(selected_path)
-        self.label_ref.text = os.path.basename(selected_path)
-        if not self.modifiable_image:
-            self.modifiable_image = ModifiableImage(
-                self.image_data,
-                self.image_modifiers,
-                size=(self.image_data.image_height, self.image_data.image_width),
-            )
-        else:
-            # Just update exising image widget with current properties instead.
-            self.modifiable_image.cleanup_texture()
-            self.modifiable_image.add_new_texture()
-            self.modifiable_image.update_threshold_texture()
+    def update_channel(self, channel):
+        self.modifiable_image.update_threshold_texture()
 
-    def update_algorithm(self, algorithm_value):
-        self.slider_manager.dispatch("on_algorithm_change", algorithm_value)
-        # self.modifiable_image.apply_blur()
-
-    def update_channel(self, channel_value):
-        print(f"Channel value: {channel_value}")
-
-    def trigger_texture_modification(self, instance, value):
-        # Value is the string used to select the channel
-        self.modifiable_image.apply_blur()
+    def update_algorithm(self, algorithm):
+        self.slider_manager.dispatch("on_algorithm_change", algorithm)
+        self.modifiable_image.update_threshold_texture()
 
 
 class FileSelectButton(Button):
@@ -109,79 +91,78 @@ class FileSelectButton(Button):
 
 
 class ModifiableImage(Image):
-    # This class will use the cv2 image channels mapped onto a texture in order to
-    # show the slider adjustments
-    image_path = StringProperty(allow_none=True)
-    selected_channel = StringProperty("grayscale_image")
-    selected_algorithm = StringProperty("GLOBAL_THRESH")
+    __image_data: ImageData = ObjectProperty(ImageData())
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.__
-        self.on_image_path(self._update_with_new_image)
-
-    def _update_with_new_image(self, instance, value):
-        # If this is being called, image path was changed.
-        pass
+    def _update_with_new_image(self, value):
+        self.__image_data.load_image(value)
+        self.cleanup_texture()
+        self.add_new_texture()
+        self.update_threshold_texture()
 
     def add_new_texture(self):
         # Override the texture property here so different resolution images are mapped
         # onto their own textures, and not overlapping on the same texture.
         self.texture = Texture.create(
-            size=(self._image_data.image_height, self._image_data.image_width),
+            size=(self.__image_data.image_height, self.__image_data.image_width),
             colorfmt="luminance",
         )
         self.texture.flip_vertical()
         self.texture.add_reload_observer(self.update_threshold_texture)
 
     def cleanup_texture(self):
-        self.texture.remove_reload_observer(self.update_threshold_texture)
+        if self.texture:
+            self.texture.remove_reload_observer(self.update_threshold_texture)
 
     def apply_blur(self):
-        target_image = self._select_image_channel()
-        self._image_modifiers.cache_blurred_image(target_image)
-        self.update_threshold_texture()
+        # Check if blur is actually set to true before applying blur
+        if self.should_apply_blur:
+            print(f"Applying blur with value: {self.blur_value}")
+            target_image = self.__image_data.get_image_by_channel(self.selected_channel)
+            self.__image_data.cache_blurred_image(target_image, int(self.blur_value))
+        self.update_threshold_texture()  # Call this to update if no blur.
 
     def update_threshold_texture(self):
-        target_image = self._select_image_channel()
-        if self._image_modifiers.blur_toggle:
-            # Apply blur to the target_image first
-            target_image = self._image_modifiers.blurred_image
+        target_image = self.__image_data.get_image_by_channel(self.selected_channel)
+        if self.should_apply_blur:
+            # Use the previously cached blur image instead of the channel image
+            print("Using cached blur image")
+            target_image = self.__image_data.blurred_image
+        print(f"Applying threshold algorithm: {self.selected_algorithm}")
         thresholded_image = self.apply_threshold_algorithm(target_image)
         self.texture.blit_buffer(
             thresholded_image.tobytes(),
-            size=(self._image_data.image_height, self._image_data.image_width),
+            size=(self.__image_data.image_height, self.__image_data.image_width),
             colorfmt="luminance",
             bufferfmt="ubyte",
         )
 
     def apply_threshold_algorithm(self, target_image):
-        if self._image_modifiers.selected_algorithm == "GLOBAL_THRESH":
+        if self.selected_algorithm == "GLOBAL_THRESH":
             return cv2.threshold(
                 target_image,
-                self._image_modifiers.binary_threshold_value,
+                self.binary_threshold_value,
                 255,
                 cv2.THRESH_BINARY,
             )[1]
-        elif self._image_modifiers.selected_algorithm == "ADAPTIVE_THRESH_MEAN_C":
+        elif self.selected_algorithm == "ADAPTIVE_THRESH_MEAN_C":
             return cv2.adaptiveThreshold(
                 target_image,
                 255,
                 cv2.ADAPTIVE_THRESH_MEAN_C,
                 cv2.THRESH_BINARY,
-                self._image_modifiers.adaptive_block_size,
-                self._image_modifiers.adaptive_constant_c,
+                self.adaptive_block_size_value,
+                self.adaptive_constant_c_value,
             )
-        elif self._image_modifiers.selected_algorithm == "ADAPTIVE_THRESH_GAUSSIAN_C":
+        elif self.selected_algorithm == "ADAPTIVE_THRESH_GAUSSIAN_C":
             return cv2.adaptiveThreshold(
                 target_image,
                 255,
                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                 cv2.THRESH_BINARY,
-                self._image_modifiers.adaptive_block_size,
-                self._image_modifiers.adaptive_constant_c,
+                self.adaptive_block_size_value,
+                self.adaptive_constant_c_value,
             )
-        elif self._image_modifiers.selected_algorithm == "OTSU_THRESH":
+        elif self.selected_algorithm == "OTSU_THRESH":
             return cv2.threshold(
                 target_image,
                 0,

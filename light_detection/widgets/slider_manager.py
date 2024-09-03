@@ -29,8 +29,6 @@ class SliderManager(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.register_event_type("on_algorithm_change")
-        # Make it only start with binary sliders
-        self.remove_adaptive_sliders()
 
     def add_adaptive_sliders(self):
         if (

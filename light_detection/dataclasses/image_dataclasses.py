@@ -1,57 +1,41 @@
 import numpy as np
 import cv2
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-
-@dataclass
-class ImageModifiers:
-    binary_threshold_value: int = 127
-    selected_channel = "grayscale_image"
-    selected_algorithm = "GLOBAL_THRESH"
-    adaptive_block_size = 11
-    adaptive_constant_c = 1
-    blur_toggle = False
-    blur_value = 1
-    blurred_image = None
-
-    def cache_blurred_image(self, image_data):
-        self.blurred_image = cv2.GaussianBlur(
-            image_data, (self.blur_value, self.blur_value), 0
-        )
+from light_detection.constants import AVAILABLE_CHANNELS
 
 
 @dataclass
 class ImageData:
-    image_path: str = None
     original_cv2_image: np.ndarray = None
-    grayscale_image: np.ndarray = None
+    channel_dict: dict[str, np.ndarray] = field(default_factory=dict)
     image_width: int = None
     image_height: int = None
-    red_channel: np.ndarray = None
-    blue_channel: np.ndarray = None
-    green_channel: np.ndarray = None
-    hue_channel: np.ndarray = None
-    saturation_channel: np.ndarray = None
-    brightness_channel: np.ndarray = None
     thresholded_image: np.ndarray = None
+    blurred_image: np.ndarray = None
     image_name: np.ndarray = None
 
     def load_image(self, image_path: str):
         # perform the image_conversions here
-        self.image_path = image_path
         self.original_cv2_image = cv2.imread(image_path)
-        self.grayscale_image = cv2.cvtColor(self.original_cv2_image, cv2.COLOR_BGR2GRAY)
-        self.image_width, self.image_height = self.grayscale_image.shape
-        self.blue_channel, self.green_channel, self.red_channel = cv2.split(
-            self.original_cv2_image
-        )
-        self.hsv_img = cv2.cvtColor(self.original_cv2_image, cv2.COLOR_BGR2HSV)
-        self.hue_channel, self.saturation_channel, self.brightness_channel = cv2.split(
-            self.hsv_img
-        )
+        blue_channel, green_channel, red_channel = cv2.split(self.original_cv2_image)
+        hsv_img = cv2.cvtColor(self.original_cv2_image, cv2.COLOR_BGR2HSV)
+        hue_channel, saturation_channel, brightness_channel = cv2.split(hsv_img)
+        grayscale_image = cv2.cvtColor(self.original_cv2_image, cv2.COLOR_BGR2GRAY)
+        self.image_width, self.image_height = grayscale_image.shape
+        self.channel_dict = {
+            "grayscale_image": grayscale_image,
+            "red_channel": red_channel,
+            "green_channel": green_channel,
+            "blue_channel": blue_channel,
+            "hue_channel": hue_channel,
+            "saturation_channel": saturation_channel,
+            "brightness_channel": brightness_channel,
+        }
 
-    def clear_thresholded_image(self):
-        self.image_path = None
-        self.original_cv2_image = None
-        self.grayscale_image = None
+    def get_image_by_channel(self, channel: str):
+        return self.channel_dict[channel]
+
+    def cache_blurred_image(self, image: np.ndarray, blur_value: int):
+        self.blurred_image = cv2.GaussianBlur(image, (blur_value, blur_value), 0)
