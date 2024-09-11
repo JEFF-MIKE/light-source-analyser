@@ -31,6 +31,6 @@ This project uses `pytest` for testing. in order to execute the tests, simply ru
 
 ## TODO:
  - [X] Rewrite to use `.kv` files where applicable :)
- - [] Allow a Video option instead of just static images
- - [] (Possibly) Use Poetry or PDM for managing the project
- - [] Add CI flow
+ - [ ] Allow a Video option instead of just static images
+ - [ ] (Possibly) Use Poetry or PDM for managing the project
+ - [ ] Add CI flow
