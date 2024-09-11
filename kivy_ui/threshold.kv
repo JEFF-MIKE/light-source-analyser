@@ -50,7 +50,10 @@
                 on_adaptive_block_size_value: self.update_threshold_texture()
                 on_adaptive_constant_c_value: self.update_threshold_texture()
                 on_blur_value: self.apply_blur()
-
+                on_should_apply_blur: self.apply_blur()
+        Label:
+            text: " ".join(["Image Name: ", root.selected_image_filename])
+            size_hint: 1, 0.08
         SliderManager:
             id: slider_manager
             size_hint: 1, 0.2
@@ -62,10 +65,15 @@
             text: 'Select Image'
 
 <EntryScreen>:
-    FileSelectButton:
-        id: file_select
-        path_selected_callback: root.swap_screen
-        on_press: self.open_file_select(self)
-        text: 'Select Image'
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint: 0.8, 0.25
+        pos_hint: {'center_x': 0.5, 'center_y': 0.5 }
+        FileSelectButton:
+            id: file_select
+            path_selected_callback: root.swap_screen
+            on_press: self.open_file_select(self)
+            text: 'Select Image'
+
 
 <ModifiableImage@Image>:

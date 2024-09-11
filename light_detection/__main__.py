@@ -47,11 +47,13 @@ class ThresholdRoot(Screen):
         # appropriately.
         previous_screen_path = self.manager.screen_list[0].selected_path
         self.slider_manager.remove_adaptive_sliders()
+        self.slider_manager.toggle_blur(False)
         self.update_root_data(previous_screen_path)
 
     def update_root_data(self, selected_path):
         print(f"Changing Image Path To: {selected_path}")
         self.selected_image_path = selected_path
+        self.selected_image_filename = os.path.basename(selected_path)
         self.modifiable_image._update_with_new_image(selected_path)
 
     def update_channel(self, channel):
@@ -119,7 +121,7 @@ class ModifiableImage(Image):
             print(f"Applying blur with value: {self.blur_value}")
             target_image = self.__image_data.get_image_by_channel(self.selected_channel)
             self.__image_data.cache_blurred_image(target_image, int(self.blur_value))
-        self.update_threshold_texture()  # Call this to update if no blur.
+        self.update_threshold_texture()  # Call this to update, even if no blur is applied
 
     def update_threshold_texture(self):
         target_image = self.__image_data.get_image_by_channel(self.selected_channel)

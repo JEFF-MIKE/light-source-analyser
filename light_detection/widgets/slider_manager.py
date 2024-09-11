@@ -1,5 +1,6 @@
 from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty, NumericProperty, StringProperty
+from kivy.app import App
 
 
 class CustomSliderContainer(BoxLayout):
@@ -21,7 +22,7 @@ class SliderManager(BoxLayout):
     slider_row: BoxLayout = ObjectProperty()
     binary_threshold_container = ObjectProperty()  # Defined in kv file as init
     blur_container = ObjectProperty()
-    blur_row = ObjectProperty()
+    blur_parent = ObjectProperty()
     blur_switch = ObjectProperty()
     constant_c_container = ObjectProperty()
     block_size_container = ObjectProperty()
@@ -53,6 +54,12 @@ class SliderManager(BoxLayout):
         if self.binary_threshold_container.parent:
             self.slider_row.remove_widget(self.binary_threshold_container)
 
+    def toggle_blur(self, value):
+        if value:
+            self.blur_parent.add_widget(self.blur_container)
+        else:
+            self.blur_parent.remove_widget(self.blur_container)
+
     def on_algorithm_change(self, algorithm_name: str):
         print(f"Algorithm changed to {algorithm_name}")
         if algorithm_name == "GLOBAL_THRESH":
@@ -70,20 +77,19 @@ class SliderManager(BoxLayout):
             self.remove_binary_threshold_slider()
 
 
+class SliderManagerApp(App):
+    def build(self):
+        slider_manager = SliderManager(size_hint_y=0.3)
+        slider_manager.add_widget(ButtonRow(slider_manager_reference=slider_manager))
+        return slider_manager
+
+
 if __name__ == "__main__":
     import os
-    from kivy.app import App
     from kivy.lang import Builder
 
     kivy_file = os.path.join(os.path.dirname(__file__), "slider_manager.kv")
     Builder.load_file(kivy_file)
 
-    class SliderManagerApp(App):
-        def build(self):
-            slider_manager = SliderManager(size_hint_y=0.3)
-            slider_manager.add_widget(
-                ButtonRow(slider_manager_reference=slider_manager)
-            )
-            return slider_manager
-
-    SliderManagerApp().run()
+    slider_manager_app = SliderManagerApp()
+    slider_manager_app.run()

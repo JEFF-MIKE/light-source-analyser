@@ -10,6 +10,7 @@
     slider_row: slider_row
     blur_switch: blur_switch
     blur_container: blur_container
+    blur_parent: blur_parent
     orientation: 'vertical'
     BoxLayout:
         id: slider_row      
@@ -28,10 +29,7 @@
             step: 2
             value: 3
             label_prefix: "Block Size: "
-
-
     GridLayout:
-        id: blur_row
         cols: 2
         BoxLayout:
             orientation: 'vertical'
@@ -40,7 +38,9 @@
             Switch:
                 id: blur_switch
                 active: False
+                on_active: root.toggle_blur(self.active)
         BoxLayout:
+            id: blur_parent
             orientation: 'vertical'
             CustomSliderContainer:
                 id: blur_container
