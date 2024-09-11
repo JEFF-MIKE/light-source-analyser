@@ -2,141 +2,75 @@ import os
 import cv2
 
 from kivy.app import App
-from kivy.uix.label import Label
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.popup import Popup
+from kivy.uix.spinner import Spinner
 from kivy.uix.image import Image
-from kivy.uix.dropdown import DropDown
+from kivy.uix.screenmanager import Screen, ScreenManager
+from kivy.properties import ObjectProperty, StringProperty
+from kivy.lang import Builder
 from kivy.graphics.texture import Texture
 
-from light_detection.dataclasses.image_dataclasses import ImageData, ImageModifiers
 from light_detection.widgets.slider_manager import SliderManager
-from light_detection.constants import AVAILABLE_CHANNELS, AVAILABLE_ALGORITHMS
+from light_detection.dataclasses.image_dataclasses import ImageData
 
 
 class ThresholdApp(App):
     def build(self):
-        self.__setup_root_skeleton_structure()
-        self.image_widget = None
-        self.modifiable_image = None
-        self.channel_dropdown = None
-        self.algorithm_dropdown = None
-        self.slider_manager = None
-        self.file_select_button = FileSelectButton(
-            text="Select File",
-            update_selected_path=self.update_selected_path,
-        )
-        self.label_ref = Label(text="", color="white", font_size="15sp", halign="left")
-        self.image_data = ImageData()
-        self.image_modifiers = ImageModifiers()
-        self.footer_row.add_widget(self.file_select_button)
-        self.label_row.add_widget(self.label_ref)
-        return self.root
+        sm = ScreenManager()
+        sm.screen_list = [
+            EntryScreen(name="entry"),
+            ThresholdRoot(name="threshold_screen"),
+        ]
+        sm.switch_to(sm.screen_list[0])
+        return sm
 
-    def __setup_root_skeleton_structure(self):
-        self.root = BoxLayout(orientation="vertical")
-        self.image_row = GridLayout(cols=2)
-        self.label_row = BoxLayout(size_hint_y=0.05)
-        self.footer_row = BoxLayout(size_hint_y=0.1)
-        self.dropdown_row = BoxLayout(size_hint_y=0.05)
-        self.slider_manager_row = BoxLayout(size_hint_y=0.25)
-        self.root.add_widget(self.dropdown_row)
-        self.root.add_widget(self.image_row)
-        self.root.add_widget(self.label_row)
-        self.root.add_widget(self.slider_manager_row)
-        self.root.add_widget(self.footer_row)
 
-    def update_selected_path(self, selected_path):
-        self.image_data.load_image(selected_path)
-        self.label_ref.text = os.path.basename(selected_path)
-        if not self.modifiable_image:
-            self.modifiable_image = ModifiableImage(
-                self.image_data,
-                self.image_modifiers,
-                size=(self.image_data.image_height, self.image_data.image_width),
-            )
-            self.image_widget = Image(source=selected_path)
-            self.image_row.add_widget(self.image_widget)
-            self.image_row.add_widget(self.modifiable_image)
-        else:
-            # Just update exising image widget with current properties instead.
-            self.modifiable_image.cleanup_texture()
-            self.modifiable_image.add_new_texture()
-            self.modifiable_image.update_threshold_texture()
-            self.image_widget.source = selected_path
-        if not self.slider_manager:
-            self.slider_manager = SliderManager(
-                self.image_modifiers,
-                orientation="vertical",
-                slider_value_change_callback=self.modifiable_image.update_threshold_texture,
-                blur_callback=self.modifiable_image.apply_blur,
-            )
-            self.slider_manager_row.add_widget(self.slider_manager)
-        if not self.channel_dropdown:
-            self.add_channel_dropdown_list()
-        if not self.algorithm_dropdown:
-            self.add_algorithm_dropdown_list()
+class ThresholdRoot(Screen):
+    # Subclass from BoxLayout instead of widget to get the correct styling properties inside .kv file!
+    file_selector = ObjectProperty()
+    dropdown_row = ObjectProperty()
+    channel_dropdown = ObjectProperty()
+    algorithm_dropdown = ObjectProperty()
+    image_row = ObjectProperty()
+    original_image = ObjectProperty()
+    slider_manager = ObjectProperty()
+    modifiable_image = ObjectProperty()
+    selected_channel = StringProperty("grayscale_image")
+    selected_algorithm = StringProperty("GLOBAL_THRESH")
+    selected_image_path = StringProperty("")
+    selected_image_filename = StringProperty("")
 
-    def add_channel_dropdown_list(self):
-        self.channel_dropdown = DropDown()
-        for item in AVAILABLE_CHANNELS:
-            btn = Button(text=item, size_hint_y=None, height=44, padding=0)
-            btn.bind(on_release=lambda btn: self.channel_dropdown.select(btn.text))
-            self.channel_dropdown.add_widget(btn)
-        self.dropdown_entrypoint = Button(
-            text="grayscale_image",
-            size_hint=(0.2, 1),
-        )
-        self.dropdown_entrypoint.bind(on_release=self.channel_dropdown.open)
-        self.channel_dropdown.bind(
-            on_select=self.trigger_texture_modification,
-        )
-        self.dropdown_row.add_widget(self.dropdown_entrypoint)
+    def on_pre_enter(self):
+        # gets the path from another screen swap, then calls update root data
+        # appropriately.
+        previous_screen_path = self.manager.screen_list[0].selected_path
+        self.slider_manager.remove_adaptive_sliders()
+        self.slider_manager.toggle_blur(False)
+        self.update_root_data(previous_screen_path)
 
-    def add_algorithm_dropdown_list(self):
-        self.algorithm_dropdown = DropDown()
-        for item in AVAILABLE_ALGORITHMS:
-            btn = Button(text=item, size_hint_y=None, height=44, padding=0)
-            btn.bind(on_release=lambda btn: self.algorithm_dropdown.select(btn.text))
-            self.algorithm_dropdown.add_widget(btn)
-        self.algorithm_dropdown_entrypoint = Button(
-            text="GLOBAL_THRESH",
-            size_hint=(0.2, 1),
-        )
-        self.algorithm_dropdown_entrypoint.bind(on_release=self.algorithm_dropdown.open)
-        self.algorithm_dropdown.bind(
-            on_select=self.trigger_algorithm_modification,
-        )
-        self.dropdown_row.add_widget(self.algorithm_dropdown_entrypoint)
+    def update_root_data(self, selected_path):
+        print(f"Changing Image Path To: {selected_path}")
+        self.selected_image_path = selected_path
+        self.selected_image_filename = os.path.basename(selected_path)
+        self.modifiable_image._update_with_new_image(selected_path)
 
-    def trigger_algorithm_modification(self, instance, value):
-        if value == self.algorithm_dropdown_entrypoint.text:
-            return
-        self.algorithm_dropdown_entrypoint.text = value
-        self.image_modifiers.selected_algorithm = value
-        # Let the slider manager handle attachment and removal of sliders
-        # itself
-        self.slider_manager.dispatch("on_algorithm_change", value)
-        self.modifiable_image.apply_blur()
+    def update_channel(self, channel):
+        self.modifiable_image.update_threshold_texture()
 
-    def trigger_texture_modification(self, instance, value):
-        # Value is the string used to select the channel
-        self.image_modifiers.selected_channel = value
-        self.dropdown_entrypoint.text = value
-        self.modifiable_image.apply_blur()
+    def update_algorithm(self, algorithm):
+        self.slider_manager.dispatch("on_algorithm_change", algorithm)
+        self.modifiable_image.update_threshold_texture()
 
 
 class FileSelectButton(Button):
-    # Make a pop up appear when the button is pressed
-    def __init__(self, update_selected_path, **kwargs):
-        super().__init__(**kwargs)
-        self.update_selected_path = update_selected_path
-        self.bind(on_press=self.open_file_select)
+    path_selected_callback = ObjectProperty(allow_none=False)
+    selected_path = StringProperty()
 
     def open_file_select(self, instance):
+        print("Opening file select")
+        print(type(instance))
         current_directory = os.getcwd()  # Make this dynamic?
         content = FileChooserListView(
             on_submit=self.selected,
@@ -145,7 +79,6 @@ class FileSelectButton(Button):
         )
         self.popup = Popup(title="Select file", content=content)
         self.popup.open()
-        self.disabled = True
 
     def selected(self, _file_select_widget, selected_path, _mouse_event):
         try:
@@ -154,20 +87,17 @@ class FileSelectButton(Button):
             print("Double click occured on non-file path, not executing logic")
             pass
         else:
-            self.update_selected_path(extracted_selected_path)
+            self.path_selected_callback(extracted_selected_path)
             self.popup.dismiss()
             self.disabled = False
 
 
 class ModifiableImage(Image):
-    # This class will use the cv2 image channels mapped onto a texture in order to
-    # show the slider adjustments
-    def __init__(
-        self, image_data: ImageData, image_modifiers: ImageModifiers, **kwargs
-    ):
-        super().__init__(**kwargs)
-        self._image_data = image_data
-        self._image_modifiers = image_modifiers
+    __image_data: ImageData = ObjectProperty(ImageData())
+
+    def _update_with_new_image(self, value):
+        self.__image_data.load_image(value)
+        self.cleanup_texture()
         self.add_new_texture()
         self.update_threshold_texture()
 
@@ -175,63 +105,66 @@ class ModifiableImage(Image):
         # Override the texture property here so different resolution images are mapped
         # onto their own textures, and not overlapping on the same texture.
         self.texture = Texture.create(
-            size=(self._image_data.image_height, self._image_data.image_width),
+            size=(self.__image_data.image_height, self.__image_data.image_width),
             colorfmt="luminance",
         )
         self.texture.flip_vertical()
         self.texture.add_reload_observer(self.update_threshold_texture)
 
     def cleanup_texture(self):
-        self.texture.remove_reload_observer(self.update_threshold_texture)
+        if self.texture:
+            self.texture.remove_reload_observer(self.update_threshold_texture)
 
     def apply_blur(self):
-        target_image = self._select_image_channel()
-        self._image_modifiers.cache_blurred_image(target_image)
-        self.update_threshold_texture()
-
-    def _select_image_channel(self):
-        return self._image_data.__dict__[self._image_modifiers.selected_channel]
+        # Check if blur is actually set to true before applying blur
+        if self.should_apply_blur:
+            print(f"Applying blur with value: {self.blur_value}")
+            target_image = self.__image_data.get_image_by_channel(self.selected_channel)
+            self.__image_data.cache_blurred_image(target_image, int(self.blur_value))
+        self.update_threshold_texture()  # Call this to update, even if no blur is applied
 
     def update_threshold_texture(self):
-        target_image = self._select_image_channel()
-        if self._image_modifiers.blur_toggle:
-            # Apply blur to the target_image first
-            target_image = self._image_modifiers.blurred_image
+        target_image = self.__image_data.get_image_by_channel(self.selected_channel)
+        if self.should_apply_blur:
+            # Use the previously cached blur image instead of the channel image
+            print("Using cached blur image")
+            target_image = self.__image_data.blurred_image
+        print(f"Applying threshold algorithm: {self.selected_algorithm}")
         thresholded_image = self.apply_threshold_algorithm(target_image)
         self.texture.blit_buffer(
             thresholded_image.tobytes(),
-            size=(self._image_data.image_height, self._image_data.image_width),
+            size=(self.__image_data.image_height, self.__image_data.image_width),
             colorfmt="luminance",
             bufferfmt="ubyte",
         )
 
     def apply_threshold_algorithm(self, target_image):
-        if self._image_modifiers.selected_algorithm == "GLOBAL_THRESH":
+        if self.selected_algorithm == "GLOBAL_THRESH":
             return cv2.threshold(
                 target_image,
-                self._image_modifiers.binary_threshold_value,
+                self.binary_threshold_value,
                 255,
                 cv2.THRESH_BINARY,
             )[1]
-        elif self._image_modifiers.selected_algorithm == "ADAPTIVE_THRESH_MEAN_C":
+        elif self.selected_algorithm == "ADAPTIVE_THRESH_MEAN_C":
             return cv2.adaptiveThreshold(
                 target_image,
                 255,
                 cv2.ADAPTIVE_THRESH_MEAN_C,
                 cv2.THRESH_BINARY,
-                self._image_modifiers.adaptive_block_size,
-                self._image_modifiers.adaptive_constant_c,
+                self.adaptive_block_size_value,
+                self.adaptive_constant_c_value,
             )
-        elif self._image_modifiers.selected_algorithm == "ADAPTIVE_THRESH_GAUSSIAN_C":
+        elif self.selected_algorithm == "ADAPTIVE_THRESH_GAUSSIAN_C":
             return cv2.adaptiveThreshold(
                 target_image,
                 255,
                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                 cv2.THRESH_BINARY,
-                self._image_modifiers.adaptive_block_size,
-                self._image_modifiers.adaptive_constant_c,
+                self.adaptive_block_size_value,
+                self.adaptive_constant_c_value,
             )
-        elif self._image_modifiers.selected_algorithm == "OTSU_THRESH":
+        elif self.selected_algorithm == "OTSU_THRESH":
             return cv2.threshold(
                 target_image,
                 0,
@@ -240,5 +173,21 @@ class ModifiableImage(Image):
             )[1]
 
 
+class DropdownSpinner(Spinner):
+    text = StringProperty()
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+class EntryScreen(Screen):
+    selected_path = StringProperty()
+
+    def swap_screen(self, path: str):
+        self.selected_path = path
+        self.manager.switch_to(self.manager.screen_list[1])
+
+
 if __name__ == "__main__":
+    Builder.load_file("kivy_ui/threshold.kv")
     ThresholdApp().run()

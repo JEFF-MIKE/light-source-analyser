@@ -1,0 +1,81 @@
+#:kivy 2.3.0
+
+<SliderManager>:
+    id: slider_manager
+    # N.B. We want to prevent the container widgets from being garbage collected, so
+    # we use a __self__ reference
+    binary_threshold_container: binary_threshold_container.__self__
+    block_size_container: block_size_container.__self__
+    constant_c_container: constant_c_container.__self__
+    slider_row: slider_row
+    blur_switch: blur_switch
+    blur_container: blur_container
+    blur_parent: blur_parent
+    orientation: 'vertical'
+    BoxLayout:
+        id: slider_row      
+        CustomSliderContainer:
+            id: binary_threshold_container
+            label_prefix: 'Binary Threshold: '
+            value: 127
+        CustomSliderContainer:
+            id: constant_c_container
+            min:1
+            value:0
+            label_prefix: "Constant C: "
+        CustomSliderContainer:
+            id: block_size_container
+            min:3
+            step: 2
+            value: 3
+            label_prefix: "Block Size: "
+    GridLayout:
+        cols: 2
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Blur'
+            Switch:
+                id: blur_switch
+                active: False
+                on_active: root.toggle_blur(self.active)
+        BoxLayout:
+            id: blur_parent
+            orientation: 'vertical'
+            CustomSliderContainer:
+                id: blur_container
+                label_prefix: 'Blur: '
+                step: 2
+                max: 255
+                min: 1
+                value: 1
+
+<CustomSliderContainer>:
+    orientation: 'vertical'
+    value: 0
+    max: 255
+    min: 0
+    step: 1
+    Slider:
+        id: slider
+        min: root.min
+        max: root.max
+        step: root.step
+        value: root.value
+        on_value: root.value = self.value
+    Label:
+        text: " ".join([root.label_prefix, str(root.value)])
+
+<ButtonRow@BoxLayout>:
+    Button:
+        on_press: root.dispatch_event("GLOBAL_THRESH")
+        text: "GLOBAL_THRESH"
+    Button:
+        text: "ADAPTIVE_THRESH_MEAN_C"
+        on_press: root.dispatch_event("ADAPTIVE_THRESH_MEAN_C")
+    Button:
+        text: "ADAPTIVE_THRESH_GAUSSIAN_C"
+        on_press: root.dispatch_event("ADAPTIVE_THRESH_GAUSSIAN_C")
+    Button:
+        text: "OTSU_THRESH"
+        on_press: root.dispatch_event("OTSU_THRESH")
