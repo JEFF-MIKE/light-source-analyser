@@ -20,6 +20,17 @@ The below GIF illustrates a more difficult example, making use of a different th
 pip install -r requirements.txt
 ```
 
+# Running the Application
+Via the command line:
+```bash
+python -m light_detection
+```
+
+# Tests
+This project uses `pytest` for testing. in order to execute the tests, simply run `pytest` in the root directory of the project.
 
 ## TODO:
- - [ ] Rewrite to use `.kv` files where applicable :)
+ - [X] Rewrite to use `.kv` files where applicable :)
+ - [] Allow a Video option instead of just static images
+ - [] (Possibly) Use Poetry or PDM for managing the project
+ - [] Add CI flow
